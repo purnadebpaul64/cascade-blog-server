@@ -26,9 +26,29 @@ async function run() {
 
     // =========== api end points
 
+    // ==== get all blog
+    app.get("/blogs", async (req, res) => {
+      const allBlogData = await blogCollection.find().toArray();
+      res.send(allBlogData);
+    });
+
+    // ==== get latest blog
+    app.get("/latest-blogs", async (req, res) => {
+      const blogs = await blogCollection
+        .find()
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .toArray();
+      res.send(blogs);
+    });
+
     // ==== add single blog
     app.post("/add-blog", async (req, res) => {
-      const newBlog = req.body;
+      //   const newBlog = req.body;
+      const newBlog = {
+        ...req.body,
+        createdAt: new Date(),
+      };
       const result = await blogCollection.insertOne(newBlog);
       res.status(201).send(result);
     });
