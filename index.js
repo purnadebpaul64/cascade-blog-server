@@ -105,6 +105,23 @@ async function run() {
       res.send(comments);
     });
 
+    // ==== Update blog
+    app.put("/update-blog/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedBlog = req.body;
+      const updatedDoc = {
+        $set: updatedBlog,
+      };
+      const result = await blogCollection.updateOne(
+        filter,
+        updatedDoc,
+        options
+      );
+      res.send(result);
+    });
+
     // Test DB connection
     await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB!");
