@@ -122,6 +122,26 @@ async function run() {
       res.send(result);
     });
 
+    // feature blog
+    app.get("/featured-blogs", async (req, res) => {
+      try {
+        const blogs = await blogCollection.find().toArray();
+
+        const topBlogs = blogs
+          .map((blog) => ({
+            ...blog,
+            wordCount: blog.blogDetails?.split(/\s+/).length || 0,
+          }))
+          .sort((a, b) => b.wordCount - a.wordCount)
+          .slice(0, 10);
+
+        res.send(topBlogs);
+      } catch (error) {
+        console.error("Failed to fetch featured blogs:", error);
+        res.status(500).send({ error: "Failed to fetch featured blogs" });
+      }
+    });
+
     // Test DB connection
     await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB!");
