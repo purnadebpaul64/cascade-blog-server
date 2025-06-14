@@ -24,6 +24,7 @@ async function run() {
     const database = client.db("cascadeblog");
     const blogCollection = database.collection("blogs");
     const wishlistCollection = database.collection("wishlists");
+    const commentCollection = database.collection("comments");
 
     // ============= API END POINTS
 
@@ -76,6 +77,32 @@ async function run() {
       };
       const result = await blogCollection.insertOne(newBlog);
       res.status(201).send(result);
+    });
+
+    // ==== Add Comment to a Blog
+    app.post("/comments", async (req, res) => {
+      const { blogId, userName, userPhoto, commentText, userEmail } = req.body;
+      const comment = {
+        blogId: new ObjectId(blogId),
+        userName,
+        userPhoto,
+        commentText,
+        userEmail,
+        createdAt: new Date(),
+      };
+
+      const result = await commentCollection.insertOne(comment);
+      res.status(201).send(result);
+    });
+
+    // ==== Get Comments by Blog ID
+    app.get("/comments/:blogId", async (req, res) => {
+      const blogId = req.params.blogId;
+      const comments = await commentCollection
+        .find({ blogId: new ObjectId(blogId) })
+        .sort({ createdAt: -1 })
+        .toArray();
+      res.send(comments);
     });
 
     // Test DB connection
