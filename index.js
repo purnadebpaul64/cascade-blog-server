@@ -2,14 +2,15 @@ require("dotenv").config();
 const express = require("express");
 const app = express();
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+
 const port = process.env.PORT || 3000;
 
-// middlewares
+// Middlewares
 app.use(cors());
 app.use(express.json());
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+// MongoDB connection
 const client = new MongoClient(process.env.MONGODB_URI, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -20,19 +21,36 @@ const client = new MongoClient(process.env.MONGODB_URI, {
 
 async function run() {
   try {
-    // =========== database connection
     const database = client.db("cascadeblog");
     const blogCollection = database.collection("blogs");
+    const wishlistCollection = database.collection("wishlists");
 
-    // =========== api end points
+    // ============= API END POINTS
 
-    // ==== get all blog
+    // ==== Get all blogs with search & category filtering
     app.get("/blogs", async (req, res) => {
-      const allBlogData = await blogCollection.find().toArray();
-      res.send(allBlogData);
+      const { search = "", category } = req.query;
+
+      const query = {};
+      if (search) {
+        query.$text = { $search: search };
+      }
+      if (category && category !== "All") {
+        query.category = category;
+      }
+      try {
+        const blogs = await blogCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send(blogs);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ err: "Failed to fetch blogs" });
+      }
     });
 
-    // ==== get latest blog
+    // ==== Get latest 6 blogs (optional usage)
     app.get("/latest-blogs", async (req, res) => {
       const blogs = await blogCollection
         .find()
@@ -42,9 +60,16 @@ async function run() {
       res.send(blogs);
     });
 
-    // ==== add single blog
+    // ==== Get Single Blog
+    app.get("/single-blog/:blogId", async (req, res) => {
+      const id = req.params.blogId;
+      const filter = { _id: new ObjectId(id) };
+      const result = await blogCollection.findOne(filter);
+      res.send(result);
+    });
+
+    // ==== Add new blog
     app.post("/add-blog", async (req, res) => {
-      //   const newBlog = req.body;
       const newBlog = {
         ...req.body,
         createdAt: new Date(),
@@ -53,22 +78,22 @@ async function run() {
       res.status(201).send(result);
     });
 
-    // Send a ping to confirm a successful connection
+    // Test DB connection
     await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    console.log("Connected to MongoDB!");
   } finally {
-    // Ensures that the client will close when you finish/error
+    // Don't close the client in production
     // await client.close();
   }
 }
 run().catch(console.dir);
 
+// Base route
 app.get("/", (req, res) => {
-  res.send("welcome to the CascadeBlog server.......");
+  res.send("CascadeBlog server is running...");
 });
 
+// Start server
 app.listen(port, () => {
-  console.log("server is running");
+  console.log(`Server is running on port ${port}`);
 });
