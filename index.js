@@ -14,7 +14,7 @@ app.use(express.json());
 const client = new MongoClient(process.env.MONGODB_URI, {
   serverApi: {
     version: ServerApiVersion.v1,
-    strict: true,
+    // strict: true,
     deprecationErrors: true,
   },
 });
@@ -25,10 +25,43 @@ async function run() {
     const blogCollection = database.collection("blogs");
     const wishlistCollection = database.collection("wishlists");
     const commentCollection = database.collection("comments");
+    // await blogCollection.createIndex(
+    //   {
+    //     title: "text",
+    //     blogDetails: "text",
+    //     tags: "text",
+    //   },
+    //   {
+    //     name: "BlogTextIndex",
+    //     default_language: "english",
+    //   }
+    // );
 
     // ============= API END POINTS
 
     // ==== Get all blogs with search & category filtering
+    // app.get("/blogs", async (req, res) => {
+    //   const { search = "", category } = req.query;
+
+    //   const query = {};
+    //   if (search) {
+    //     query.$text = { $search: search };
+    //   }
+    //   if (category && category !== "All") {
+    //     query.category = category;
+    //   }
+    //   try {
+    //     const blogs = await blogCollection
+    //       .find(query)
+    //       .sort({ createdAt: -1 })
+    //       .toArray();
+    //     res.send(blogs);
+    //   } catch (err) {
+    //     console.error(err);
+    //     res.status(500).send({ err: "Failed to fetch blogs" });
+    //   }
+    // });
+
     app.get("/blogs", async (req, res) => {
       const { search = "", category } = req.query;
 
@@ -39,10 +72,16 @@ async function run() {
       if (category && category !== "All") {
         query.category = category;
       }
+
+      const projection = search ? { score: { $meta: "textScore" } } : {};
+      const sort = search
+        ? { score: { $meta: "textScore" } }
+        : { createdAt: -1 };
+
       try {
         const blogs = await blogCollection
-          .find(query)
-          .sort({ createdAt: -1 })
+          .find(query, { projection })
+          .sort(sort)
           .toArray();
         res.send(blogs);
       } catch (err) {
