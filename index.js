@@ -122,7 +122,7 @@ async function run() {
       res.send(result);
     });
 
-    // feature blog
+    // ==== featured blog
     app.get("/featured-blogs", async (req, res) => {
       try {
         const blogs = await blogCollection.find().toArray();
@@ -140,6 +140,35 @@ async function run() {
         console.error("Failed to fetch featured blogs:", error);
         res.status(500).send({ error: "Failed to fetch featured blogs" });
       }
+    });
+
+    // ==== TOGGLE Wishlist
+    app.post("/wishlist", async (req, res) => {
+      const { blogId, userEmail } = req.body;
+      const existing = await wishlistCollection.findOne({ blogId, userEmail });
+      if (existing) {
+        await wishlistCollection.deleteOne({ blogId, userEmail });
+        return res.send({ wished: false, message: "Removed from wishlist" });
+      } else {
+        await wishlistCollection.insertOne({
+          blogId,
+          userEmail,
+        });
+        return res.send({ wished: true, message: "Added to wishlist" });
+      }
+    });
+
+    // ==== GET Wishlisted Blogs by User Email ====
+    app.get("/wishlist/:userEmail", async (req, res) => {
+      const userEmail = req.params.userEmail;
+      const wishlistItems = await wishlistCollection
+        .find({ userEmail })
+        .toArray();
+      const blogIds = wishlistItems.map((item) => new ObjectId(item.blogId));
+      const blogs = await blogCollection
+        .find({ _id: { $in: blogIds } })
+        .toArray();
+      res.send(blogs);
     });
 
     // Test DB connection
