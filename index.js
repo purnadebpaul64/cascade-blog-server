@@ -3,12 +3,36 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-
 const port = process.env.PORT || 3000;
+const admin = require("firebase-admin");
+const serviceAccount = require("./firebase-service-key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
 // Middlewares
 app.use(cors());
 app.use(express.json());
+
+const verifyFIrebaseToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).send({ error: "Unauthorized access" });
+  }
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    // console.log("token decoded ============ ", decoded);
+    req.decoded = decoded;
+    next();
+  } catch (error) {
+    console.error("Token verification failed:", error);
+    return res.status(401).send({ error: "Invalid or expired token" });
+  }
+};
 
 // MongoDB connection
 const client = new MongoClient(process.env.MONGODB_URI, {
@@ -40,28 +64,6 @@ async function run() {
     // ============= API END POINTS
 
     // ==== Get all blogs with search & category filtering
-    // app.get("/blogs", async (req, res) => {
-    //   const { search = "", category } = req.query;
-
-    //   const query = {};
-    //   if (search) {
-    //     query.$text = { $search: search };
-    //   }
-    //   if (category && category !== "All") {
-    //     query.category = category;
-    //   }
-    //   try {
-    //     const blogs = await blogCollection
-    //       .find(query)
-    //       .sort({ createdAt: -1 })
-    //       .toArray();
-    //     res.send(blogs);
-    //   } catch (err) {
-    //     console.error(err);
-    //     res.status(500).send({ err: "Failed to fetch blogs" });
-    //   }
-    // });
-
     app.get("/blogs", async (req, res) => {
       const { search = "", category } = req.query;
 
@@ -109,7 +111,7 @@ async function run() {
     });
 
     // ==== Add new blog
-    app.post("/add-blog", async (req, res) => {
+    app.post("/add-blog", verifyFIrebaseToken, async (req, res) => {
       const newBlog = {
         ...req.body,
         createdAt: new Date(),
@@ -145,7 +147,7 @@ async function run() {
     });
 
     // ==== Update blog
-    app.put("/update-blog/:id", async (req, res) => {
+    app.put("/update-blog/:id", verifyFIrebaseToken, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const options = { upsert: true };
@@ -198,8 +200,13 @@ async function run() {
     });
 
     // ==== GET Wishlisted Blogs by User Email ====
-    app.get("/wishlist/:userEmail", async (req, res) => {
+    app.get("/wishlist/:userEmail", verifyFIrebaseToken, async (req, res) => {
       const userEmail = req.params.userEmail;
+      // console.log(req.headers);
+      if (req.decoded.email !== userEmail) {
+        return res.status(403).send({ error: "Forbidden" });
+      }
+
       const wishlistItems = await wishlistCollection
         .find({ userEmail })
         .toArray();
