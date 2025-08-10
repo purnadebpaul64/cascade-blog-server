@@ -5,7 +5,10 @@ const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 3000;
 const admin = require("firebase-admin");
-const serviceAccount = require("./firebase-service-key.json");
+const decode = Buffer.from(process.env.FB_SERVICE_KEY, "base64").toString(
+  "utf8"
+);
+const serviceAccount = JSON.parse(decode);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -102,12 +105,44 @@ async function run() {
       res.send(blogs);
     });
 
+    // ==== Get all blogs by a specific user
+    app.get("/blogs-by-user/:email", async (req, res) => {
+      const email = req.params.email;
+
+      try {
+        const blogs = await blogCollection
+          .find({ addedEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send(blogs);
+      } catch (error) {
+        console.error("Failed to fetch user blogs:", error);
+        res.status(500).send({ error: "Failed to fetch blogs" });
+      }
+    });
+
     // ==== Get Single Blog
     app.get("/single-blog/:blogId", async (req, res) => {
       const id = req.params.blogId;
       const filter = { _id: new ObjectId(id) };
       const result = await blogCollection.findOne(filter);
       res.send(result);
+    });
+
+    // ==== Get Stats: total blogs & total comments
+    app.get("/stats", async (req, res) => {
+      try {
+        const totalBlogs = await blogCollection.countDocuments();
+        const totalComments = await commentCollection.countDocuments();
+
+        res.send({
+          totalBlogs,
+          totalComments,
+        });
+      } catch (error) {
+        console.error("Failed to fetch stats:", error);
+        res.status(500).send({ error: "Failed to fetch stats" });
+      }
     });
 
     // ==== Add new blog
@@ -118,6 +153,24 @@ async function run() {
       };
       const result = await blogCollection.insertOne(newBlog);
       res.status(201).send(result);
+    });
+
+    // ==== Delete blog by ID
+    app.delete("/delete-blog/:id", verifyFIrebaseToken, async (req, res) => {
+      const id = req.params.id;
+      try {
+        const result = await blogCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        if (result.deletedCount === 1) {
+          res.send({ message: "Blog deleted successfully" });
+        } else {
+          res.status(500).send({ error: "Failed to delete blog" });
+        }
+      } catch (error) {
+        console.error("Error deleting blog:", error);
+        res.status(500).send({ error: "Server error while deleting blog" });
+      }
     });
 
     // ==== Add Comment to a Blog
@@ -218,8 +271,8 @@ async function run() {
     });
 
     // Test DB connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Connected to MongoDB!");
+    // await client.db("admin").command({ ping: 1 });
+    // console.log("Connected to MongoDB!");
   } finally {
     // Don't close the client in production
     // await client.close();
